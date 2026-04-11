@@ -10,9 +10,9 @@
 Ne po përdorim një qasje "Modular/Lite-MVC". Kjo do të thotë që nuk po shkruajmë gjithçka në një skedar `index.php`, por e kemi ndarë projektin në blloqe logjike në mënyrë që të punojmë paralelisht pa i prishur kodin njëri-tjetrit:
 
 * **`/includes`**: Përmban pjesët e përsëritura të dizajnit (`header.php`, `footer.php`, navigimet).
-* **`/classes`**: Këtu vendoset e gjithë logjika e objekt-orientuar (OOP). Këtu jetojnë klasat pa HTML (p.sh. `Perdoruesi.php`, `Institucioni.php`).
+* **`/classes`**: Këtu vendoset e gjithë logjika e objekt-orientuar (OOP). Këtu jetojnë klasat pa HTML (p.sh. `User.php`, `Institution.php`).
 * **`/public`**: Faqet që mund t'i shohë kushdo (Ballina, Rreth Nesh, `login.php`).
-* **`/dashboard`**: Zona e Kuqe (E Mbrojtur). Askush nuk hyn këtu pa kaluar përmes skedarit të sigurisë `auth_check.php`. Brenda saj ndahet në `/admin` dhe `/user`.
+* **`/dashboard`**: Zona e Kuqe (E Mbrojtur). Askush nuk hyn këtu pa kaluar përmes skedarit të sigurisë `authentication.php`. Brenda saj ndahet në `/admin` dhe `/user`.
 * **`/assets`**: CSS, Imazhet dhe skriptat JS.
 
 ---
@@ -25,7 +25,7 @@ Për të marrë pikët maksimale, çdo anëtar do të marrë "pronësinë" e nj�
 *Meqenëse ti e ke ngritur arkitekturën bazë, ti do të menaxhosh fluksin e të dhënave.*
 * **Detyrat e Fazës 1:**
     * Menaxhimi përfundimtar i `login.php`, **Sessions** dhe **Cookies** (Kërkesa: 2 pikë).
-    * Sigurimi i rrugëzimit të saktë me `auth_check.php`.
+    * Sigurimi i rrugëzimit të saktë me `authentication.php`.
 * **Faza 2 (Përgatitja):** Do të merresh me Sigurinë (Mbrojtja nga SQL Injection, XSS, dhe Hashing i fjalëkalimeve).
 
 ### 👤 Anëtari 2 (Endriti) - Arkitekti i OOP dhe Validimeve RegEx
