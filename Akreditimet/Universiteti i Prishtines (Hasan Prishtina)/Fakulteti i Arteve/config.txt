@@ -1,0 +1,6 @@
+; Statusi i Akreditimit
+statusi = "Aprovuar"
+
+; Datat e Akreditimit (Viti-Muaji-Dita)
+data_e_fundit = "2021-09-01"
+vlefshme_deri = "2026-09-01"
