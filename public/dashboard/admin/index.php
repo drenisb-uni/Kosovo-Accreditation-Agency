@@ -7,30 +7,53 @@ if(empty($_SESSION['emri'])) { $_SESSION['emri'] = 'Admin'; $_SESSION['roli'] = 
 $akreditimet_dir = '../../../Akreditimet/';
 $mesazhi = '';
 
-// --- 1. LOGJIKA E FSHIRJES (Për të gjitha institucionet) ---
+// --- 1. LOGJIKA E FSHIRJES DHE PËRDITËSIMIT TË STATUSIT ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($_POST['fakulteti']) && isset($_POST['universiteti'])) {
     $pdf_per_fshirje = basename($_POST['fshi_pdf']);
     $uni_fshirje = str_replace(['.', '/', '\\'], '', $_POST['universiteti']);
     $fakulteti_fshirje = str_replace(['.', '/', '\\'], '', $_POST['fakulteti']);
+    $statusi_pas_fshirjes = $_POST['statusi_pas_fshirjes'] ?? 'Refuzuar';
     
-    // Nëse është fshirje e akreditimit institucional (drejtpërdrejt në root të Universitetit)
+    // Gjejmë rrugën e saktë të skedarit
     if ($fakulteti_fshirje === 'MAIN_INST') {
-        $file_path = $akreditimet_dir . $uni_fshirje . '/' . $pdf_per_fshirje;
+        $folder_path = $akreditimet_dir . $uni_fshirje . '/';
     } else {
-        $file_path = $akreditimet_dir . $uni_fshirje . '/' . $fakulteti_fshirje . '/' . $pdf_per_fshirje;
+        $folder_path = $akreditimet_dir . $uni_fshirje . '/' . $fakulteti_fshirje . '/';
     }
     
+    $file_path = $folder_path . $pdf_per_fshirje;
+    
     if (file_exists($file_path) && unlink($file_path)) {
-        $mesazhi = "<div class='alert success'>Dokumenti <strong>$pdf_per_fshirje</strong> u fshi me sukses!</div>";
+        // Përditësojmë config.txt me statusin e ri pas fshirjes
+        $config_path = $folder_path . 'config.txt';
+        $data_fundit = 'N/A';
+        $vlefshme = 'N/A';
+        
+        // Nxjerrim datat e vjetra nëse ekzistojnë
+        if(file_exists($config_path)) {
+            $config_vjeter = parse_ini_file($config_path);
+            if($config_vjeter) {
+                $data_fundit = $config_vjeter['data_e_fundit'] ?? 'N/A';
+                $vlefshme = $config_vjeter['vlefshme_deri'] ?? 'N/A';
+            }
+        }
+        
+        // Ruajmë config-un e ri
+        $config_content = "statusi=\"$statusi_pas_fshirjes\"\ndata_e_fundit=\"$data_fundit\"\nvlefshme_deri=\"$vlefshme\"\n";
+        file_put_contents($config_path, $config_content);
+        
+        $mesazhi = "<div class='alert success'>Dokumenti <strong>$pdf_per_fshirje</strong> u fshi dhe statusi u ndryshua në: <strong>$statusi_pas_fshirjes</strong>!</div>";
     } else {
         $mesazhi = "<div class='alert error'>Gabim: Nuk u mund të fshihej dokumenti.</div>";
     }
 }
 
-// --- 2. LOGJIKA E UPLOADIT (Për të gjitha institucionet) ---
+// --- 2. LOGJIKA E UPLOADIT DHE PËRDITËSIMIT TË AKREDITIMIT ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file']) && isset($_POST['target_uni_fak'])) {
-    // Ndajmë vlerën e dërguar nga forma (Format: Universiteti||Fakulteti)
     $target_parts = explode('||', $_POST['target_uni_fak']);
+    $statusi_ri = $_POST['statusi_ri'] ?? 'Aprovuar';
+    $data_nga = $_POST['data_nga'] ?? 'N/A';
+    $data_deri = $_POST['data_deri'] ?? 'N/A';
     
     if (count($target_parts) == 2) {
         $uni_zgjedhur = str_replace(['.', '/', '\\'], '', $target_parts[0]);
@@ -56,7 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file']) && isset(
             $mesazhi = "<div class='alert error'>Gabim: Vetëm fajllat PDF lejohen!</div>";
         } else {
             if (move_uploaded_file($_FILES["pdf_file"]["tmp_name"], $target_file)) {
-                $mesazhi = "<div class='alert success'>Dokumenti u ngarkua me sukses për <strong>$emri_per_mesazh</strong>!</div>";
+                // KRIJIMI OSE PËRDITËSIMI I SKEDARIT TË KONFIGURIMIT
+                $config_content = "statusi=\"$statusi_ri\"\ndata_e_fundit=\"$data_nga\"\nvlefshme_deri=\"$data_deri\"\n";
+                file_put_contents($target_dir . 'config.txt', $config_content);
+                
+                $mesazhi = "<div class='alert success'>Dokumenti u ngarkua dhe akreditimi u përditësua për <strong>$emri_per_mesazh</strong>!</div>";
             } else {
                 $mesazhi = "<div class='alert error'>Pati një gabim gjatë ngarkimit të fajllit.</div>";
             }
@@ -71,23 +98,15 @@ if (is_dir($akreditimet_dir)) {
     $universitetet = scandir($akreditimet_dir);
     foreach ($universitetet as $uni) {
         if ($uni !== '.' && $uni !== '..' && is_dir($akreditimet_dir . $uni)) {
-            
             $uni_path = $akreditimet_dir . $uni . '/';
             $te_gjitha_institucionet[$uni] = [
-                'institucionale' => [
-                    'ekziston' => false,
-                    'statusi' => 'E panjohur',
-                    'data_e_fundit' => 'N/A',
-                    'vlefshme_deri' => 'N/A',
-                    'dokumentet_pdf' => []
-                ],
+                'institucionale' => ['ekziston' => false, 'statusi' => 'E panjohur', 'data_e_fundit' => 'N/A', 'vlefshme_deri' => 'N/A', 'dokumentet_pdf' => []],
                 'fakultetet' => []
             ];
 
             $elementet = scandir($uni_path);
             $ka_dokumente_institucionale = false;
 
-            // 3.1 Lexojmë Akreditimin Institucional
             $config_inst_path = $uni_path . 'config.txt';
             if (file_exists($config_inst_path)) {
                 $ka_dokumente_institucionale = true;
@@ -104,15 +123,8 @@ if (is_dir($akreditimet_dir)) {
                     if (is_file($uni_path . $elem) && strtolower(pathinfo($elem, PATHINFO_EXTENSION)) == 'pdf') {
                         $ka_dokumente_institucionale = true;
                         $te_gjitha_institucionet[$uni]['institucionale']['dokumentet_pdf'][] = $elem;
-                    }
-                    elseif (is_dir($uni_path . $elem)) {
-                        $fak_data = [
-                            'statusi' => 'E panjohur',
-                            'data_e_fundit' => 'N/A',
-                            'vlefshme_deri' => 'N/A',
-                            'dokumentet_pdf' => []
-                        ];
-
+                    } elseif (is_dir($uni_path . $elem)) {
+                        $fak_data = ['statusi' => 'E panjohur', 'data_e_fundit' => 'N/A', 'vlefshme_deri' => 'N/A', 'dokumentet_pdf' => []];
                         $config_path = $uni_path . $elem . '/config.txt';
                         if (file_exists($config_path)) {
                             $config = parse_ini_file($config_path);
@@ -122,22 +134,28 @@ if (is_dir($akreditimet_dir)) {
                                 $fak_data['vlefshme_deri'] = $config['vlefshme_deri'] ?? 'N/A';
                             }
                         }
-
                         $files = scandir($uni_path . $elem);
                         foreach ($files as $file) {
                             if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) == 'pdf') {
                                 $fak_data['dokumentet_pdf'][] = $file;
                             }
                         }
-
                         $te_gjitha_institucionet[$uni]['fakultetet'][$elem] = $fak_data;
                     }
                 }
             }
-
             $te_gjitha_institucionet[$uni]['institucionale']['ekziston'] = $ka_dokumente_institucionale;
         }
     }
+}
+
+// Funksion për të përcaktuar klasën CSS të statusit
+function merrKlasenEStatusit($statusi) {
+    $st = strtolower(trim($statusi));
+    if ($st == 'aprovuar') return 'aprovuar';
+    if ($st == 'refuzuar') return 'refuzuar';
+    if ($st == 'e paakredituar' || $st == 'epaakredituar') return 'e-paakredituar';
+    return 'ne-shqyrtim';
 }
 ?>
 
@@ -150,20 +168,18 @@ if (is_dir($akreditimet_dir)) {
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f6f9; display: flex; height: 100vh; overflow: hidden; }
-        
         .sidebar { width: 250px; background-color: #2c3e50; color: white; padding: 20px; display: flex; flex-direction: column; }
         .sidebar h2 { font-size: 18px; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 1px solid #34495e; text-align: center; }
         .sidebar a { color: #bdc3c7; text-decoration: none; padding: 12px; margin-bottom: 8px; border-radius: 5px; transition: 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #34495e; color: white; }
         .logout-btn { margin-top: auto; background-color: #c0392b; text-align: center; color: white !important; font-weight: bold; }
-
         .main-content { flex: 1; padding: 30px; overflow-y: auto; }
         .top-header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 25px; }
         .badge-roli { background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
 
         .upload-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 30px; border-top: 4px solid #9b59b6; }
-        .upload-card select { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; width: 350px;}
-        .upload-card input[type="file"] { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; width: 250px;}
+        .upload-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
+        .upload-card select, .upload-card input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn { background: #3498db; color: white; border: none; padding: 9px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn:hover { background: #2980b9; }
 
@@ -184,6 +200,7 @@ if (is_dir($akreditimet_dir)) {
         .status.aprovuar { background: #d4edda; color: #155724; }
         .status.refuzuar { background: #f8d7da; color: #721c24; }
         .status.ne-shqyrtim { background: #fff3cd; color: #856404; }
+        .status.e-paakredituar { background: #e2e3e5; color: #383d41; } /* Ngjyra e re gri për të paakredituar */
         
         .pdf-link { color: #2c3e50; text-decoration: none; font-size: 13px; font-weight: bold; }
         .pdf-item { display: flex; align-items: center; margin-bottom: 5px; background: #f1f2f6; padding: 5px 8px; border-radius: 4px; width: fit-content; }
@@ -191,6 +208,32 @@ if (is_dir($akreditimet_dir)) {
         .inst-row { background-color: #fdfefe; }
         .inst-row td { border-bottom: 2px solid #ecf0f1; }
     </style>
+    <script>
+        // Funksioni që shfaqet kur klikojmë butonin Delete (X)
+        function konfirmoFshirjen(form) {
+            if (confirm("Kujdes! A jeni të sigurt që dëshironi të fshini këtë dokument?")) {
+                let statusiRi = prompt(
+                    "Cili do të jetë statusi i ri i këtij institucioni/fakulteti pas fshirjes?\n\n" +
+                    "Shkruaj numrin:\n" +
+                    "1 - Aprovuar\n" +
+                    "2 - Refuzuar\n" +
+                    "3 - Në shqyrtim\n" +
+                    "4 - E paakredituar", 
+                    "4"
+                );
+                
+                let vlera = "E paakredituar"; // Default nese shkruan diçka te pakuptueshme
+                if (statusiRi === "1") vlera = "Aprovuar";
+                if (statusiRi === "2") vlera = "Refuzuar";
+                if (statusiRi === "3") vlera = "Në shqyrtim";
+                if (statusiRi === "4") vlera = "E paakredituar";
+                
+                form.statusi_pas_fshirjes.value = vlera;
+                return true;
+            }
+            return false;
+        }
+    </script>
 </head>
 <body>
 
@@ -213,30 +256,42 @@ if (is_dir($akreditimet_dir)) {
         <?php echo $mesazhi; ?>
 
         <div class="upload-card">
-            <h3 style="color: #9b59b6; margin-bottom: 10px;">Shto dokument të ri (PDF)</h3>
+            <h3 style="color: #9b59b6; margin-bottom: 15px;">Shto dokument dhe përditëso akreditimin</h3>
             <form action="index.php" method="POST" enctype="multipart/form-data">
-                <select name="target_uni_fak" required>
-                    <option value="" disabled selected>Zgjidh Institucionin dhe Fakultetin...</option>
+                
+                <div class="upload-row">
+                    <select name="target_uni_fak" required style="width: 350px;">
+                        <option value="" disabled selected>1. Zgjidh Institucionin dhe Fakultetin...</option>
+                        <?php foreach ($te_gjitha_institucionet as $uni => $data): ?>
+                            <optgroup label="<?php echo htmlspecialchars($uni); ?>">
+                                <option value="<?php echo htmlspecialchars($uni); ?>||MAIN_INST">➜ Akreditimi Institucional i <?php echo htmlspecialchars($uni); ?></option>
+                                <?php foreach ($data['fakultetet'] as $fak_emri => $fak_data): ?>
+                                    <option value="<?php echo htmlspecialchars($uni); ?>||<?php echo htmlspecialchars($fak_emri); ?>">&nbsp;&nbsp;&nbsp;Fakulteti: <?php echo htmlspecialchars($fak_emri); ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                        <?php endforeach; ?>
+                    </select>
                     
-                    <?php foreach ($te_gjitha_institucionet as $uni => $data): ?>
-                        <optgroup label="<?php echo htmlspecialchars($uni); ?>">
-                            
-                            <option value="<?php echo htmlspecialchars($uni); ?>||MAIN_INST">
-                                ➜ Akreditimi Institucional i <?php echo htmlspecialchars($uni); ?>
-                            </option>
-                            
-                            <?php foreach ($data['fakultetet'] as $fak_emri => $fak_data): ?>
-                                <option value="<?php echo htmlspecialchars($uni); ?>||<?php echo htmlspecialchars($fak_emri); ?>">
-                                    &nbsp;&nbsp;&nbsp;Fakulteti: <?php echo htmlspecialchars($fak_emri); ?>
-                                </option>
-                            <?php endforeach; ?>
-                            
-                        </optgroup>
-                    <?php endforeach; ?>
+                    <input type="file" name="pdf_file" accept=".pdf" required style="width: 250px;">
+                </div>
+
+                <div class="upload-row">
+                    <select name="statusi_ri" required>
+                        <option value="" disabled selected>2. Statusi i ri...</option>
+                        <option value="Aprovuar">✅ Aprovuar</option>
+                        <option value="Refuzuar">❌ Refuzuar</option>
+                        <option value="Në shqyrtim">⏳ Në shqyrtim</option>
+                        <option value="E paakredituar">🚫 E paakredituar</option>
+                    </select>
                     
-                </select>
-                <input type="file" name="pdf_file" accept=".pdf" required>
-                <button type="submit" class="btn">Ngarko</button>
+                    <span style="font-size: 14px; color: #555;">E vlefshme nga:</span>
+                    <input type="date" name="data_nga" required title="Data e fillimit të akreditimit">
+                    
+                    <span style="font-size: 14px; color: #555;">Deri më:</span>
+                    <input type="date" name="data_deri" required title="Data e përfundimit">
+                    
+                    <button type="submit" class="btn">Ngarko & Përditëso</button>
+                </div>
             </form>
         </div>
 
@@ -263,9 +318,7 @@ if (is_dir($akreditimet_dir)) {
 
                             <?php if ($data['institucionale']['ekziston']): 
                                 $inst = $data['institucionale'];
-                                $klasa_statusit = 'ne-shqyrtim';
-                                if (strtolower($inst['statusi']) == 'aprovuar') $klasa_statusit = 'aprovuar';
-                                if (strtolower($inst['statusi']) == 'refuzuar') $klasa_statusit = 'refuzuar';
+                                $klasa_statusit = merrKlasenEStatusit($inst['statusi']);
                             ?>
                                 <tr class="inst-row">
                                     <td style="padding-left: 40px; color: #2980b9;">🎓 <strong>Akreditimi Institucional (Qendror)</strong></td>
@@ -283,11 +336,11 @@ if (is_dir($akreditimet_dir)) {
                                             ?>
                                                 <div class="pdf-item">
                                                     <a href="<?php echo $file_url; ?>" target="_blank" class="pdf-link">📄 <?php echo htmlspecialchars($pdf); ?></a>
-                                                    
-                                                    <form action="index.php" method="POST" style="display:inline;" onsubmit="return confirm('A jeni të sigurt?');">
+                                                    <form action="index.php" method="POST" style="display:inline;" onsubmit="return konfirmoFshirjen(this);">
                                                         <input type="hidden" name="universiteti" value="<?php echo htmlspecialchars($uni); ?>">
                                                         <input type="hidden" name="fakulteti" value="MAIN_INST">
                                                         <input type="hidden" name="fshi_pdf" value="<?php echo htmlspecialchars($pdf); ?>">
+                                                        <input type="hidden" name="statusi_pas_fshirjes" value="">
                                                         <button type="submit" class="btn-fshi" title="Fshi Dokumentin">X</button>
                                                     </form>
                                                 </div>
@@ -297,48 +350,38 @@ if (is_dir($akreditimet_dir)) {
                                 </tr>
                             <?php endif; ?>
 
-                            <?php if (empty($data['fakultetet'])): ?>
+                            <?php foreach ($data['fakultetet'] as $fak_emri => $fak_data): 
+                                $klasa_statusit = merrKlasenEStatusit($fak_data['statusi']);
+                            ?>
                                 <tr>
-                                    <td colspan="4" style="padding-left: 40px; color: #e67e22; font-size: 13px;">
-                                        <em>⚠️ Nuk ka fakultete ose programe specifike të regjistruara për këtë institucion.</em>
+                                    <td style="padding-left: 40px;">↳ <strong><?php echo htmlspecialchars($fak_emri); ?></strong></td>
+                                    <td>
+                                        <small style="color: gray;">Nga:</small> <?php echo $fak_data['data_e_fundit']; ?> <br>
+                                        <small style="color: gray;">Deri:</small> <strong><?php echo $fak_data['vlefshme_deri']; ?></strong>
+                                    </td>
+                                    <td><span class="status <?php echo $klasa_statusit; ?>"><?php echo htmlspecialchars($fak_data['statusi']); ?></span></td>
+                                    <td>
+                                        <?php if (empty($fak_data['dokumentet_pdf'])): ?>
+                                            <span style="color: #999; font-size: 12px;">S'ka dokumente</span>
+                                        <?php else: ?>
+                                            <?php foreach ($fak_data['dokumentet_pdf'] as $pdf): 
+                                                $file_url = $akreditimet_dir . urlencode($uni) . '/' . urlencode($fak_emri) . '/' . urlencode($pdf);
+                                            ?>
+                                                <div class="pdf-item">
+                                                    <a href="<?php echo $file_url; ?>" target="_blank" class="pdf-link">📄 <?php echo htmlspecialchars($pdf); ?></a>
+                                                    <form action="index.php" method="POST" style="display:inline;" onsubmit="return konfirmoFshirjen(this);">
+                                                        <input type="hidden" name="universiteti" value="<?php echo htmlspecialchars($uni); ?>">
+                                                        <input type="hidden" name="fakulteti" value="<?php echo htmlspecialchars($fak_emri); ?>">
+                                                        <input type="hidden" name="fshi_pdf" value="<?php echo htmlspecialchars($pdf); ?>">
+                                                        <input type="hidden" name="statusi_pas_fshirjes" value="">
+                                                        <button type="submit" class="btn-fshi" title="Fshi Dokumentin">X</button>
+                                                    </form>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
-                            <?php else: ?>
-                                <?php foreach ($data['fakultetet'] as $fak_emri => $fak_data): 
-                                    $klasa_statusit = 'ne-shqyrtim';
-                                    if (strtolower($fak_data['statusi']) == 'aprovuar') $klasa_statusit = 'aprovuar';
-                                    if (strtolower($fak_data['statusi']) == 'refuzuar') $klasa_statusit = 'refuzuar';
-                                ?>
-                                    <tr>
-                                        <td style="padding-left: 40px;">↳ <strong><?php echo htmlspecialchars($fak_emri); ?></strong></td>
-                                        <td>
-                                            <small style="color: gray;">Nga:</small> <?php echo $fak_data['data_e_fundit']; ?> <br>
-                                            <small style="color: gray;">Deri:</small> <strong><?php echo $fak_data['vlefshme_deri']; ?></strong>
-                                        </td>
-                                        <td><span class="status <?php echo $klasa_statusit; ?>"><?php echo htmlspecialchars($fak_data['statusi']); ?></span></td>
-                                        <td>
-                                            <?php if (empty($fak_data['dokumentet_pdf'])): ?>
-                                                <span style="color: #999; font-size: 12px;">S'ka dokumente</span>
-                                            <?php else: ?>
-                                                <?php foreach ($fak_data['dokumentet_pdf'] as $pdf): 
-                                                    $file_url = $akreditimet_dir . urlencode($uni) . '/' . urlencode($fak_emri) . '/' . urlencode($pdf);
-                                                ?>
-                                                    <div class="pdf-item">
-                                                        <a href="<?php echo $file_url; ?>" target="_blank" class="pdf-link">📄 <?php echo htmlspecialchars($pdf); ?></a>
-                                                        
-                                                        <form action="index.php" method="POST" style="display:inline;" onsubmit="return confirm('A jeni të sigurt?');">
-                                                            <input type="hidden" name="universiteti" value="<?php echo htmlspecialchars($uni); ?>">
-                                                            <input type="hidden" name="fakulteti" value="<?php echo htmlspecialchars($fak_emri); ?>">
-                                                            <input type="hidden" name="fshi_pdf" value="<?php echo htmlspecialchars($pdf); ?>">
-                                                            <button type="submit" class="btn-fshi" title="Fshi Dokumentin">X</button>
-                                                        </form>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                            <?php endforeach; ?>
                             
                         <?php endforeach; ?>
                     <?php endif; ?>
