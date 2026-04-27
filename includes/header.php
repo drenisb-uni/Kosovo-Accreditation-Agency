@@ -23,7 +23,7 @@
         <div class="nav-menu">
             <a href="index.php">Ballina</a>
             <a href="about_us.php">Rreth AKA</a>
-            <a href="akreditimet.php">Akreditimet</a>
+            <a href="institucionet.php">Akreditimet</a>
             <a href="kshc.php">KSHC</a>
 
             
