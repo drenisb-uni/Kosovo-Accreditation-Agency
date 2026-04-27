@@ -37,7 +37,25 @@ if(file_exists($json_path)) {
     $info = json_decode(file_get_contents($json_path), true);
     $statusi_aktual = $info['statusi'];
 }
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $raporti = [
+        'përdoruesi' => $_SESSION['emri'] ?? 'User i panjohur',
+        'subjekti' => htmlspecialchars($_POST['subjekti']),
+        'mesazhi' => htmlspecialchars($_POST['mesazhi']),
+        'data' => date('Y-m-d H:i:s')
+    ];
+
+    $path = '../../../Akreditimet/Reports/';
+    if (!is_dir($path)) mkdir($path, 0777, true);
+
+    $file_name = "raport_" . time() . ".json";
+    file_put_contents($path . $file_name, json_encode($raporti, JSON_PRETTY_PRINT));
+
+    header("Location: index.php?status=success");
+}
 ?>
+<?php require_once '../../../includes/userHeader.php'; ?></php>
 
 <!DOCTYPE html>
 <html lang="sq">
@@ -53,20 +71,30 @@ if(file_exists($json_path)) {
         .request-card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 20px auto; }
         .status-box { text-align: center; padding: 20px; margin-bottom: 20px; border-radius: 8px; background: #ebf5fb; border: 1px solid #3498db; }
         .status-text { font-size: 20px; font-weight: bold; color: #2980b9; }
-        #logout {margin:15px 0px;text-align:center;height: 25px;width: 100px;border: 1px solid #2980b9;border-radius: 5px;background-color:#3498db ;float: right;padding-top: 7px;font-weight: bold;}
+        #logout {margin:15px 0px;text-align:center;height: 25px;width: 100px;border: 1px solid #2980b9;border-radius: 5px;background-color:#3498db ;float: right;padding-top: 7px;font-weight: bold;margin-left: 15px;}
         #logout:hover{background-color: #003366;}
         #link{text-decoration-line: none;color: #2980b9;}
+        #link2{text-decoration-line: none;color: #2980b9;}
+
         #dergoap{font-weight: bold;border-radius:5px;width:175px;height:30px;background-color:#ebf5fb;}
         #mirseviniText{border-bottom:5px solid black;border-radius:4px;width:70%;border-color:#2980b9}
         #emriProgramitInput{border-radius:5px;width:95%;height:30px;background-color:#ebf5fb;margin-bottom:20px}
         #dergoKerkesenText{border-bottom:3.5px solid black;width:35%;border-color:#2980b9}
+        #raportoButton{margin:15px 0px;text-align:center;height: 25px;width: 120px;border: 1px solid #ff7700;border-radius: 5px;background-color:#ff7700 ;float: right;padding-top: 7px;font-weight: bold}
+        #raportoButton:hover{background-color: #FF4500;}    
     </style>
 </head>
 <body>
     <div class="main-content" style="flex: 1; padding: 40px;">
     <div id="logout" >
         <a  id="link" href="../../logout.php"style="color:white">LOGOUT</a>        
-            </div>    
+            </div>
+    <div id="raportoButton">
+    <a id="link2" href="raportimi.php" class="btn-report-nav" style="color:white">
+     RAPORTO
+    </a>
+</div>
+        
     
         <h2 id="mirseviniText">Mirësevini në Sistemin e Akreditimit</h2>
         <p>Institucioni: <strong><?php echo $user_uni; ?></strong> | Fakulteti: <strong><?php echo $user_fak; ?></strong></p>
@@ -90,6 +118,9 @@ if(file_exists($json_path)) {
             
         </div>
     </div>
+    
+
+
 </body>
 </html>
 <?php require_once '../../../includes/footer.php'; ?></php>
