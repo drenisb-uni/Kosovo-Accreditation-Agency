@@ -1,6 +1,9 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
+// Kontrolli i logimit (Routing)
 if (isset($_SESSION['roli'])) {
     if ($_SESSION['roli'] == 'admin') {
         header("Location: dashboard/admin/index.php");
@@ -13,6 +16,7 @@ if (isset($_SESSION['roli'])) {
 
 $gabim = "";
 
+// MULTIDIMENSIONAL ARRAY 
 $perdoruesit_fiktiv = [
     'admin@aka.rks-gov.net' => [
         'fjalekalimi' => 'admin123', 
@@ -26,59 +30,75 @@ $perdoruesit_fiktiv = [
     ]
 ];
 
-// Kontrollojmë nëse forma është dërguar (metoda POST)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     
-    // Verifikimi: A ekziston ky email në array dhe a përputhet fjalëkalimi?
     if (array_key_exists($email, $perdoruesit_fiktiv) && $perdoruesit_fiktiv[$email]['fjalekalimi'] == $password) {
         
-        // 2. Ruajtja e vlerave në Session (Kërkesë e Fazës 1)
         $_SESSION['email'] = $email;
         $_SESSION['roli'] = $perdoruesit_fiktiv[$email]['roli'];
         $_SESSION['emri'] = $perdoruesit_fiktiv[$email]['emri'];
 
-        // 3. Përdorimi i Cookies për personalizim (Kërkesë e Fazës 1)
+        // COOKIES
         if (isset($_POST['mbaj_mend'])) {
-            // Ruajmë emailin në Cookie për 30 ditë
             setcookie("email_i_ruajtur", $email, time() + (86400 * 30), "/");
         } else {
-            // Fshijmë cookie-n nëse nuk u zgjodh kutia
             setcookie("email_i_ruajtur", "", time() - 3600, "/");
         }
 
-        // Ridrejtimi sipas rolit
-        if ($_SESSION['roli'] == 'admin') {
-            header("Location: dashboard/admin/index.php");
-        } else {
-            header("Location: dashboard/user/index.php");
-        }
+        header("Location: " . ($_SESSION['roli'] == 'admin' ? "dashboard/admin/index.php" : "dashboard/user/index.php"));
         exit();
     } else {
         $gabim = "Emaili ose Fjalëkalimi është i pasaktë!";
     }
 }
 
-// Shikojmë nëse kemi një email të ruajtur në Cookie për ta parambushur formën
-$email_nga_cookie = isset($_COOKIE['email_i_ruajtur']) ? $_COOKIE['email_i_ruajtur'] : '';
+$email_nga_cookie = $_COOKIE['email_i_ruajtur'] ?? '';
+
+
+// 1. Ngarkojmë strukturën bazë të Header-it (CSS, Meta tags etj)
+require_once '../includes/header.php'; 
+
+// 2. LOGJIKA E NAVIGIMIT (ROUTING) - Pika 1 e detyrës sate
+if (isset($_SESSION['roli'])) {
+    if ($_SESSION['roli'] === 'admin') {
+        require_once '../includes/nav_admin.php';
+    } else {
+        require_once '../includes/nav_user.php';
+    }
+}
+
 ?>
 
-<!DOCTYPE html>
-<html lang="sq">
-<head>
-    <meta charset="UTF-8">
-    <title>Kyçja - Agjencia e Akreditimit</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; margin-top: 100px; }
-        .login-box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 300px; }
-        .login-box input[type="email"], .login-box input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
-        .login-box button { width: 100%; padding: 10px; background: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        .error { color: red; font-size: 14px; text-align: center; }
-    </style>
-</head>
-<body>
+<style>
+    .login-container {
+        min-height: 70vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f4f4f9;
+        padding: 40px 0;
+    }
+    .login-box { 
+        background: white; 
+        padding: 30px; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        width: 350px; 
+    }
+    .login-box h2 { color: #1e3a8a; margin-bottom: 20px; }
+    .login-box input[type="email"], .login-box input[type="password"] { 
+        width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
+    }
+    .login-box button { 
+        width: 100%; padding: 12px; background: #1e3a8a; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;
+    }
+    .login-box button:hover { background: #2c3e50; }
+    .error { color: #d9534f; background: #f9dfdf; padding: 10px; border-radius: 4px; font-size: 14px; text-align: center; }
+</style>
 
+<div class="login-container">
     <div class="login-box">
         <h2 style="text-align:center;">Kyçja në AKA</h2>
         
@@ -93,17 +113,23 @@ $email_nga_cookie = isset($_COOKIE['email_i_ruajtur']) ? $_COOKIE['email_i_ruajt
             <label>Fjalëkalimi:</label>
             <input type="password" name="password" required>
             
-            <div style="margin-bottom: 15px;">
+            <div style="margin: 15px 0; font-size: 14px;">
                 <input type="checkbox" name="mbaj_mend" id="mbaj_mend" <?php echo $email_nga_cookie ? 'checked' : ''; ?>>
                 <label for="mbaj_mend">Më mbaj mend (Cookie)</label>
             </div>
 
             <button type="submit">Hyr</button>
         </form>
-        <p style="font-size:12px; text-align:center; margin-top:20px; color:#666;">
-            Provoni: <br> admin@aka.rks-gov.net / admin123 <br> rektorati@uni-pr.edu / uni123
-        </p>
-    </div>
 
-</body>
-</html>
+        <div style="font-size:11px; text-align:center; margin-top:25px; color:#777; border-top: 1px solid #eee; padding-top: 15px;">
+            <strong>Llogaritë testuese (Dummy Data):</strong><br>
+            <?php 
+                foreach($perdoruesit_fiktiv as $email_key => $data) {
+                    echo "Roli: " . strtoupper($data['roli']) . " | " . $email_key . " | Pw: " . $data['fjalekalimi'] . "<br>";
+                }
+            ?>
+        </div>
+    </div>
+</div>
+
+<?php require_once '../includes/footer.php'; ?>
