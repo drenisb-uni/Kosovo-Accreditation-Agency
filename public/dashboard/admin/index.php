@@ -1,4 +1,3 @@
-@ -1,670 +0,0 @@
 <?php
 require_once '../authentication.php';
 kontrolloQasjen('admin');
