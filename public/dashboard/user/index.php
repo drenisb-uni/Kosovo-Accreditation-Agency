@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     header("Location: index.php?status=success");
 }
 ?>
+<?php require_once '../../../includes/userHeader.php'; ?></php>
 
 <!DOCTYPE html>
 <html lang="sq">
