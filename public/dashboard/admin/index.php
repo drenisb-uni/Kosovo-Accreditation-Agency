@@ -413,6 +413,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="sidebar">
         <h2>AKA - KSHC</h2>
         <a href="index.php" class="active">Menaxho Akreditimet</a>
+        <a href="raportet.php" class="<?php echo (basename($_SERVER['PHP_SELF']) == 'menaxho_raportet.php') ? 'active' : ''; ?>">
+        Raportimet e Problemeve
+        <?php 
+            // Opsionale: Shfaq numrin e raporteve aktive si badge
+            $r_path = '../../../Akreditimet/Reports/';
+            if (is_dir($r_path)) {
+                $numri_raporteve = count(glob($r_path . "*.json"));
+                if ($numri_raporteve > 0) {
+                    echo "<span style='background:#e74c3c; color:white; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;'>$numri_raporteve</span>";
+                }
+            }
+        ?>
+    </a>
         <a href="../../logout.php" class="logout-btn">Dilni</a>
     </div>
 
