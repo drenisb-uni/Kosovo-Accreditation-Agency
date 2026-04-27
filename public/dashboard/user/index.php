@@ -44,17 +44,31 @@ if(file_exists($json_path)) {
 <head>
     <meta charset="UTF-8">
     <title>User Dashboard - Aplikimi për Akreditim</title>
-    <link rel="stylesheet" href="stili_juaj.css"> <style>
+    <link rel="stylesheet" href="stili_juaj.css">
+    <link rel="stylesheet" href="../../../assets/css/style.css">
+
+    <style>
+        
+        
         .request-card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 20px auto; }
         .status-box { text-align: center; padding: 20px; margin-bottom: 20px; border-radius: 8px; background: #ebf5fb; border: 1px solid #3498db; }
         .status-text { font-size: 20px; font-weight: bold; color: #2980b9; }
-        #logout {margin:15px 0px;text-align:center;height: 20px;width: 150px;border: 1px solid #2980b9;border-radius: 45px;background-color:#ebf5fb ;}
+        #logout {margin:15px 0px;text-align:center;height: 25px;width: 100px;border: 1px solid #2980b9;border-radius: 5px;background-color:#3498db ;float: right;padding-top: 7px;font-weight: bold;}
+        #logout:hover{background-color: #003366;}
         #link{text-decoration-line: none;color: #2980b9;}
+        #dergoap{font-weight: bold;border-radius:5px;width:175px;height:30px;background-color:#ebf5fb;}
+        #mirseviniText{border-bottom:5px solid black;border-radius:4px;width:70%;border-color:#2980b9}
+        #emriProgramitInput{border-radius:5px;width:95%;height:30px;background-color:#ebf5fb;margin-bottom:20px}
+        #dergoKerkesenText{border-bottom:3.5px solid black;width:35%;border-color:#2980b9}
     </style>
 </head>
 <body>
     <div class="main-content" style="flex: 1; padding: 40px;">
-        <h2>Mirësevini në Sistemin e Akreditimit</h2>
+    <div id="logout" >
+        <a  id="link" href="../../logout.php"style="color:white">LOGOUT</a>        
+            </div>    
+    
+        <h2 id="mirseviniText">Mirësevini në Sistemin e Akreditimit</h2>
         <p>Institucioni: <strong><?php echo $user_uni; ?></strong> | Fakulteti: <strong><?php echo $user_fak; ?></strong></p>
         
         <?php echo $mesazhi; ?>
@@ -65,18 +79,18 @@ if(file_exists($json_path)) {
         </div>
 
         <div class="request-card">
-            <h3>Dërgo Kërkesë të Re</h3><br>
+            <h3 id="dergoKerkesenText">Dërgo Kërkesë të Re</h3><br>
             <form action="" method="POST" enctype="multipart/form-data">
                 <label>Emri i Programit:</label><br>
-                <input type="text" name="emri_programit" required style="width:100%; padding:10px; margin: 10px 0;"><br>
-                <label>Dokumentacioni (PDF):</label><br>
-                <input type="file" name="request_pdf" accept=".pdf" required><br><br>
-                <button type="submit" class="btn" style="width:100%">Dërgo Aplikimin</button>
+                <input id="emriProgramitInput" type="text" name="emri_programit" required style="padding:10px; margin: 10px 0;"><br>
+                <label >Dokumentacioni (PDF):</label><br>
+                <input  type="file" name="request_pdf" accept=".pdf" required style="display:inline"><br><br>
+                <button id="dergoap" type="submit" class="btn">Dërgo Aplikimin</button>
             </form>
-            <div id="logout" >
-            <a id="link" href="../../logout.php">Dilni (Logout)</a>
-            </div>
+            
         </div>
     </div>
 </body>
 </html>
+<?php require_once '../../../includes/footer.php'; ?></php>
+
