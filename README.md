@@ -1,63 +1,69 @@
+# Kosovo Accreditation Agency (AKA) - Management System
 
----
+Ky është një sistem menaxhimi për Agjencinë e Akreditimit të Kosovës (AKA), i ndërtuar për të lehtësuar procesin e akreditimit institucional dhe akademik. Sistemi lejon administratorët (KSHC) të menaxhojnë dokumentet, të shqyrtojnë kërkesat e reja dhe të monitorojnë statusin e vlefshmërisë së akreditimeve.
 
-# DOKUMENTACIONI I PROJEKTIT: Agjencia e Kosovës për Akreditim (AKA)
-**Ekipi:** 4 Zhvillues
-**Lënda:** Programimi në ueb nga ana e Serverit
-**Qëllimi:** Përmbushja e Fazës I (20 Prill) dhe parapërgatitja për Fazën II (25 Maj).
+## 🚀 Funksionalitetet Kryesore
 
-## 1. Logjika dhe Struktura e Përgjithshme (Arkitektura)
-Ne po përdorim një qasje "Modular/Lite-MVC". Kjo do të thotë që nuk po shkruajmë gjithçka në një skedar `index.php`, por e kemi ndarë projektin në blloqe logjike në mënyrë që të punojmë paralelisht pa i prishur kodin njëri-tjetrit:
+### Paneli i Administratorit (Admin Dashboard)
+- **Menaxhimi i Akreditimeve:** Ngarkimi i dokumenteve PDF dhe caktimi i vlefshmërisë (nga/deri) për institucione dhe fakultete.
+- **Shqyrtimi i Kërkesave:** Një seksion i dedikuar për kërkesat e reja që vijnë nga institucionet, me opsione për Aprovim ose Refuzim.
+- **Statistikat Live:** Monitorimi në kohë reale i numrit të institucioneve, programeve të aprovuara dhe akreditimeve që skadojnë së shpejti.
+- **Sistemi i Raportimit:** Ndërfaqe për menaxhimin e problemeve teknike të raportuara nga përdoruesit.
+- **Kërkimi Live:** Filtrues dinamik për të gjetur shpejt universitetet ose statuset specifike në tabelë.
 
-* **`/includes`**: Përmban pjesët e përsëritura të dizajnit (`header.php`, `footer.php`, navigimet).
-* **`/classes`**: Këtu vendoset e gjithë logjika e objekt-orientuar (OOP). Këtu jetojnë klasat pa HTML (p.sh. `User.php`, `Institution.php`).
-* **`/public`**: Faqet që mund t'i shohë kushdo (Ballina, Rreth Nesh, `login.php`).
-* **`/dashboard`**: Zona e Kuqe (E Mbrojtur). Askush nuk hyn këtu pa kaluar përmes skedarit të sigurisë `authentication.php`. Brenda saj ndahet në `/admin` dhe `/user`.
-* **`/assets`**: CSS, Imazhet dhe skriptat JS.
+### Paneli i Përdoruesit (User Dashboard)
+- **Ngarkimi i Dokumenteve:** Mundësia që institucionet të dërgojnë dokumentacionin për shqyrtim.
+- **Raportimi i Problemeve:** Një faqe e dedikuar për të dërguar ankesa ose raporte teknike te admini përmes skedarëve JSON.
 
----
+## 📂 Struktura e Projektit
 
-## 2. Ndarja e Roleve (Detyrat për secilin Anëtar)
+Sipas organizimit të dosjeve në këtë depo:
 
-Për të marrë pikët maksimale, çdo anëtar do të marrë "pronësinë" e një kërkese specifike nga rubrika e vlerësimit.
+* **`Akreditimet/`**: Dosja kryesore ku ruhen dokumentet PDF dhe skedarët e konfigurimit (`config.txt`) për çdo institucion.
+    * `Reports/`: Ruhen raportimet e problemeve në format JSON.
+    * `Requests/`: Ruhen kërkesat e reja për akreditim që presin shqyrtimin.
+* **`public/`**: Përmban skedarët kryesorë të ballinës dhe ndërfaqes së përdoruesit.
+* **`includes/`**: Skedarët ndihmës dhe konfigurimet e sistemit.
+* **`classes/`**: Implementimet e hershme të Programimit të Orientuar në Objekte (OOP) për login/logout.
+* **`assets/`**: Skedarët statikë (CSS, Imazhe, JS).
 
-### 👤 Anëtari 1 (Eldi) - Lead Backend & Siguria
-*Meqenëse ti e ke ngritur arkitekturën bazë, ti do të menaxhosh fluksin e të dhënave.*
-* **Detyrat e Fazës 1:**
-    * Menaxhimi përfundimtar i `login.php`, **Sessions** dhe **Cookies** (Kërkesa: 2 pikë).
-    * Sigurimi i rrugëzimit të saktë me `authentication.php`.
-* **Faza 2 (Përgatitja):** Do të merresh me Sigurinë (Mbrojtja nga SQL Injection, XSS, dhe Hashing i fjalëkalimeve).
+## 🛠️ Teknologjitë e Përdorura
 
-### 👤 Anëtari 2 (Endriti) - Arkitekti i OOP dhe Validimeve RegEx
-*Ky anëtar do të fokusohet te llogaritjet dhe logjika prapa skenës.*
-* **Detyrat e Fazës 1:**
-    * Zgjerimi i skedarëve në folderin `/classes` (**OOP - 1 pikë**). Të sigurohet që kemi metoda Get/Set të plota dhe minimum 2 klasa të domenit me trashëgimi.
-    * Ndërtimi i logjikës së **Validimit me RegEx (1 pikë)**. Krijimi i një forme p.sh. "Shto Përdorues" ose "Regjistro Institucion" ku emaili dhe numri i telefonit validohen në server me RegEx para se të procedohen.
-* **Faza 2 (Përgatitja):** Do të fokusohet te ndërtimi i skripteve **AJAX** për operacionet asinkrone.
+- **Backend:** PHP 
+- **Frontend:** HTML5, CSS3, JavaScript
+- **Storage:** File-based system (PDF, TXT/Config, JSON) - Nuk kërkon bazë të dhënash SQL për ruajtjen e dokumenteve.
 
-### 👤 Anëtari 3 (Zgjim) - UI/UX & Menaxhimi i Vargjeve (Arrays)
-*Ky anëtar sigurohet që projekti të duket profesional dhe navigimi të funksionojë saktë.*
-* **Detyrat e Fazës 1:**
-    * Implementimi i struktures **Include/Require (1 pikë)** për Header/Footer në të gjitha faqet.
-    * Dizajnimi i tabelave dhe listave. Përdorimi i **Multidimensional Arrays (1 pikë)** dhe unazave (`foreach`) për të shfaqur të dhënat "dummy" kudo në projekt.
-    * Përdorimi i operatorëve dhe funksioneve të stringjeve/datave brenda UI-t.
-* **Faza 2 (Përgatitja):** Krijimi i formave HTML që do të përdoren për operacionet e plota CRUD (Create, Read, Update, Delete).
 
-### 👤 Anëtari 4 (Drenisi) - DevOps, Dokumentimi & Databaza
-*Ky anëtar mban përgjegjësi për dorëzimin dhe integrimin e kodit.*
-* **Detyrat e Fazës 1:**
-    * Krijimi dhe menaxhimi i repozitorit në **GitHub**. Zgjidhja e konflikteve (Merge conflicts) kur anëtarët dërgojnë kodin.
-    * Shkrimi i skedarit **README.md (1 pikë nga dorëzimi)** me udhëzime të sakta se si asistentët ta ekzekutojnë projektin (p.sh., si ta ndezin XAMPP, cilat llogari testuese të përdorin).
-    * Inçizimi i **Video Demonstrimit** (kërkesë e dorëzimit).
-* **Faza 2 (Përgatitja):** Do të jetë "Database Administrator". Dizajnon skemën relacionale në MySQL (Minimum 3 tabela) dhe përgatit skedarin `.sql` për ta lidhur me projektin.
+## 💻 Hapat për Ekzekutim në XAMPP
 
----
+Për të ekzekutuar këtë projekt në makinën tuaj lokale, ndiqni këto udhëzime hap pas hapi:
 
-## 3. Rregullat e Artë për Ekipin (GitHub Workflow)
-Për të mos fshirë punën e njëri-tjetrit:
-1.  **Askush nuk punon direkt në degën (branch) `main`!**
-2.  Secili anëtar krijon degën e tij për detyrën që ka. P.sh., Anëtari 2 hap terminalin dhe shkruan: `git checkout -b validimi-regex`.
-3.  Pasi e përfundon detyrën, e bën "Push" në GitHub dhe hap një **Pull Request**.
-4.  Anëtari 4 e rishikon kodin dhe e bën "Merge" me degën kryesore.
+### 1. Shkarkimi i Projektit
+Klononi projektin nga GitHub ose shkarkoni skedarin ZIP dhe ekstraptojeni atë në folderin `htdocs` të instalimit tuaj të XAMPP:
+`git clone [https://github.com/eldikryeziu04/Kosovo-Accreditation-Agency.git](https://github.com/eldikryeziu04/Kosovo-Accreditation-Agency.git)`
+`C:\xampp\htdocs\Kosovo-Accreditation-Agency`
 
----
+### 2. Aktivizimi i Serverit
+- Hapni **XAMPP Control Panel**.
+- Startoni modulin **Apache**. (Nuk kërkohet MySQL pasi sistemi bazohet në skedarë JSON dhe TXT).
+
+### 3. Konfigurimi i Permisioneve
+Sistemi shkruan dhe fshin skedarë në folderin `Akreditimet/`. Sigurohuni që Apache ka leje për të modifikuar këtë folder:
+- Klikoni me të djathtën mbi folderin `Akreditimet`.
+- Zgjidhni **Properties** -> **Security**.
+- Sigurohuni që përdoruesi `Everyone` ose `Users` ka lejet **Write** dhe **Modify**.
+
+### 4. Struktura e URL-së
+Hapni browser-in tuaj dhe shkruani:
+`http://localhost/Kosovo-Accreditation-Agency/public/index.php`
+
+### 5. Testimi
+Për të hyrë në sistem, përdorni kredencialet e definuara në `authentication.php`:
+- **Admin (KSHC):** Përdorni llogarinë e administratorit për të menaxhuar akreditimet dhe raportet.
+- **User (Institucioni):** Përdorni llogarinë e përdoruesit për të dërguar kërkesa dhe për të raportuar probleme.
+
+## 🛠️ Troubleshooting (Zgjidhja e Problemeve)
+
+- **Gabimi "File Not Found":** Sigurohuni që emri i folderit në `htdocs` përputhet saktësisht me atë në URL.
+- **Gabimi gjatë dërgimit të raportit:** Nëse merrni error kur dërgoni një raport, kontrolloni nëse rruga `$reports_dir = '../../../Akreditimet/Reports/';` është e saktë në raport me vendndodhjen e skedarit `procesi_raportit.php`.
+- **Karakteret e çuditshme në krye të faqes:** Nëse shihni `@ -1,670 +0,0 @@`, hapni `index.php` dhe fshini çdo tekst që ndodhet para tagut hapës `<?php`.
