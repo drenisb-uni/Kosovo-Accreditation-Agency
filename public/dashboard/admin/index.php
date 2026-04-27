@@ -6,7 +6,7 @@ if(empty($_SESSION['emri'])) { $_SESSION['emri'] = 'Admin'; $_SESSION['roli'] = 
 
 $akreditimet_dir = '../../../Akreditimet/';
 $mesazhi = '';
-
+$requests_dir = '../../../Akreditimet/Requests/';
 // --- 1. LOGJIKA E FSHIRJES DHE PËRDITËSIMIT TË STATUSIT ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($_POST['fakulteti']) && isset($_POST['universiteti'])) {
     $pdf_per_fshirje = basename($_POST['fshi_pdf']);
@@ -203,6 +203,39 @@ function merrKlasenEStatusit($statusi) {
     if ($st == 'e paakredituar' || $st == 'epaakredituar') return 'e-paakredituar';
     return 'ne-shqyrtim';
 }
+// LOGJIKA E PROCESIMIT TË KËRKESAVE
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $uni = str_replace(['.', '/', '\\'], '', $_POST['uni'] ?? '');
+    $fak = str_replace(['.', '/', '\\'], '', $_POST['fak'] ?? '');
+    $file = basename($_POST['file'] ?? '');
+    $source = $requests_dir . "$uni/$fak/$file";
+
+    // --- APROVIMI ---
+    if (isset($_POST['aprovo_kerkesen'])) {
+        $data_nga = $_POST['data_fillimi'] ?? date('Y-m-d');
+        $data_deri = $_POST['data_mbarimi'] ?? date('Y-m-d', strtotime('+3 years'));
+        
+        $dest_folder = $akreditimet_dir . "$uni/$fak/";
+        if (!is_dir($dest_folder)) mkdir($dest_folder, 0777, true);
+
+        if (file_exists($source) && rename($source, $dest_folder . $file)) {
+            $config_content = "statusi=\"Aprovuar\"\ndata_e_fundit=\"$data_nga\"\nvlefshme_deri=\"$data_deri\"\n";
+            file_put_contents($dest_folder . 'config.txt', $config_content);
+            @unlink($requests_dir . "$uni/$fak/status_request.json");
+            $mesazhi = "<div class='alert success'>Programi u aprovua me sukes (Vlefshmëria: $data_nga deri $data_deri)!</div>";
+        }
+    } 
+
+    // --- REFUZIMI ---
+    if (isset($_POST['refuzo_kerkesen'])) {
+        if (file_exists($source)) {
+            // Opsionale: Mund ta fshini fajllin ose ta zhvendosni në një folder 'Archive/Refused'
+            unlink($source); 
+            @unlink($requests_dir . "$uni/$fak/status_request.json");
+            $mesazhi = "<div class='alert error'>Kërkesa u refuzua dhe u fshi nga sistemi.</div>";
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -233,7 +266,7 @@ function merrKlasenEStatusit($statusi) {
         .stat-card.yellow { border-bottom-color: #f1c40f; }
         .stat-card.red { border-bottom-color: #e74c3c; }
 
-        .upload-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 30px; border-top: 4px solid #9b59b6; }
+        .upload-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 30px; border-top: 4px solid #9b59b6;widht:500px }
         .upload-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .upload-card select, .upload-card input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn { background: #3498db; color: white; border: none; padding: 9px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -433,7 +466,7 @@ function merrKlasenEStatusit($statusi) {
                     
                     <input type="file" name="pdf_file" accept=".pdf" required style="width: 250px;">
                 </div>
-
+                
                 <div class="upload-row">
                     <select name="statusi_ri" required>
                         <option value="" disabled selected>2. Statusi i ri...</option>
@@ -452,7 +485,72 @@ function merrKlasenEStatusit($statusi) {
                     <button type="submit" class="btn">Ngarko & Përditëso</button>
                 </div>
             </form>
-        </div>
+                <div class="tabela-container" style="margin-top: 30px;margin-bottom:150px; border-top: 4px solid #f1c40f;">
+    <h3 style="margin-bottom:15px;">📥 Kërkesat e Reja për Shqyrtim</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Institucioni / Fakulteti</th>
+                <th>Programi / Dokumenti</th>
+                <th>Cakto Vlefshmërinë</th>
+                <th>Veprime</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            if (is_dir($requests_dir)) {
+                $universitetet_req = scandir($requests_dir);
+                foreach ($universitetet_req as $uni_folder) {
+                    if ($uni_folder == '.' || $uni_folder == '..') continue;
+                    
+                    $fakultetet_req = scandir($requests_dir . $uni_folder);
+                    foreach ($fakultetet_req as $fak_folder) {
+                        if ($fak_folder == '.' || $fak_folder == '..') continue;
+                        
+                        $json_path = $requests_dir . "$uni_folder/$fak_folder/status_request.json";
+                        
+                        if (file_exists($json_path)) {
+                            $req_data = json_decode(file_get_contents($json_path), true);
+                            ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($uni_folder . " / " . $fak_folder); ?></td>
+                                <td>
+                                    <strong><?php echo htmlspecialchars($req_data['programi']); ?></strong><br>
+                                    <a href="<?php echo $requests_dir . $uni_folder . '/' . $fak_folder . '/' . $req_data['file']; ?>" target="_blank" style="font-size: 11px; color: #3498db;">📄 Shiko Dokumentin</a>
+                                </td>
+                                
+                                <form method="POST">
+                                    <input type="hidden" name="uni" value="<?php echo htmlspecialchars($uni_folder); ?>">
+                                    <input type="hidden" name="fak" value="<?php echo htmlspecialchars($fak_folder); ?>">
+                                    <input type="hidden" name="file" value="<?php echo htmlspecialchars($req_data['file']); ?>">
+                                    
+                                    <td>
+                                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                                            <small>Nga:</small>
+                                            <input type="date" name="data_fillimi" value="<?php echo date('Y-m-d'); ?>" required style="font-size: 12px;">
+                                            <small>Deri:</small>
+                                            <input type="date" name="data_mbarimi" required style="font-size: 12px;">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                                            <button type="submit" name="aprovo_kerkesen" class="btn" style="background:#27ae60; padding: 5px; font-size: 11px;">Aprovo</button>
+                                            <button type="submit" name="refuzo_kerkesen" class="btn" style="background:#e74c3c; padding: 5px; font-size: 11px;" onclick="return confirm('A jeni të sigurt?')">Refuzo</button>
+                                        </div>
+                                    </td>
+                                </form>
+                            </tr>
+                            <?php
+                        }
+                    }
+                }
+            } else {
+                echo "<tr><td colspan='4'>Nuk ka folder për kërkesa.</td></tr>";
+            }
+            ?>
+        </tbody>
+    </table>
+</div>
 
         <div class="tabela-container">
             <div class="tabela-header-flex">
