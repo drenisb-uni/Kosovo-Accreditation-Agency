@@ -13,17 +13,17 @@
     <header class="main-header">
         
         <a href="index.php" class="logo-container">
-            <img src="../assets/akaLogo.png" alt="Logo AKA" class="site-logo">
+        <img src="../assets/akaLogo.png" alt="Logo AKA" class="site-logo">
             <div class="logo-text-wrapper">
-                <h1>AKA</h1>
-                <h2>Agjencia e Kosovës për Akreditim</h2>
+                <h1 style="color: white;">AKA</h1>
+                    <h2 style="color: white;">Agjencia e Kosovës për Akreditim</h2>
             </div>
         </a>
 
         <div class="nav-menu">
             <a href="index.php">Ballina</a>
             <a href="about_us.php">Rreth AKA</a>
-            <a href="institucionet.php">Akreditimet</a>
+            <a href="akreditimet.php">Akreditimet</a>
             <a href="kshc.php">KSHC</a>
 
             
