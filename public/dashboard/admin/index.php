@@ -2,19 +2,26 @@
 require_once '../authentication.php';
 kontrolloQasjen('admin');
 
-if(empty($_SESSION['emri'])) { $_SESSION['emri'] = 'Admin'; $_SESSION['roli'] = 'admin'; }
-
 $akreditimet_dir = '../../../Akreditimet/';
 $mesazhi = '';
 
-// --- 1. LOGJIKA E FSHIRJES DHE PËRDITËSIMIT TË STATUSIT ---
+// Funksion ndihmës për të fshirë dosjet me gjithë përmbajtjen (Rekursivisht)
+function fshi_dosjen_rekursivisht($dir) {
+    if (!is_dir($dir)) return false;
+    $files = array_diff(scandir($dir), array('.','..'));
+    foreach ($files as $file) {
+        (is_dir("$dir/$file")) ? fshi_dosjen_rekursivisht("$dir/$file") : unlink("$dir/$file");
+    }
+    return rmdir($dir);
+}
+
+// --- 1. LOGJIKA E FSHIRJES SË PDF-së SPECIFIKE ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($_POST['fakulteti']) && isset($_POST['universiteti'])) {
     $pdf_per_fshirje = basename($_POST['fshi_pdf']);
     $uni_fshirje = str_replace(['.', '/', '\\'], '', $_POST['universiteti']);
     $fakulteti_fshirje = str_replace(['.', '/', '\\'], '', $_POST['fakulteti']);
     $statusi_pas_fshirjes = $_POST['statusi_pas_fshirjes'] ?? 'Refuzuar';
     
-    // Gjejmë rrugën e saktë të skedarit
     if ($fakulteti_fshirje === 'MAIN_INST') {
         $folder_path = $akreditimet_dir . $uni_fshirje . '/';
     } else {
@@ -24,12 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($
     $file_path = $folder_path . $pdf_per_fshirje;
     
     if (file_exists($file_path) && unlink($file_path)) {
-        // Përditësojmë config.txt me statusin e ri pas fshirjes
         $config_path = $folder_path . 'config.txt';
         $data_fundit = 'N/A';
         $vlefshme = 'N/A';
         
-        // Nxjerrim datat e vjetra nëse ekzistojnë
         if(file_exists($config_path)) {
             $config_vjeter = parse_ini_file($config_path);
             if($config_vjeter) {
@@ -38,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($
             }
         }
         
-        // Ruajmë config-un e ri
         $config_content = "statusi=\"$statusi_pas_fshirjes\"\ndata_e_fundit=\"$data_fundit\"\nvlefshme_deri=\"$vlefshme\"\n";
         file_put_contents($config_path, $config_content);
         
@@ -48,8 +52,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_pdf']) && isset($
     }
 }
 
-// --- 2. LOGJIKA E UPLOADIT DHE PËRDITËSIMIT TË AKREDITIMIT ---
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file']) && isset($_POST['target_uni_fak'])) {
+// --- 2. LOGJIKA E FSHIRJES SË PLOTË (DOSJES/FAKULTETIT) ---
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['fshi_direktorin'])) {
+    $uni_fshirje = str_replace(['.', '/', '\\'], '', $_POST['universiteti']);
+    $fakulteti_fshirje = str_replace(['.', '/', '\\'], '', $_POST['fakulteti']);
+    
+    if ($fakulteti_fshirje === 'MAIN_INST') {
+        $folder_path = $akreditimet_dir . $uni_fshirje . '/';
+        $emri_msg = "Universiteti $uni_fshirje me të gjitha fakultetet";
+    } else {
+        $folder_path = $akreditimet_dir . $uni_fshirje . '/' . $fakulteti_fshirje . '/';
+        $emri_msg = "Fakulteti $fakulteti_fshirje";
+    }
+
+    if (fshi_dosjen_rekursivisht($folder_path)) {
+        $mesazhi = "<div class='alert success'><strong>$emri_msg</strong> u fshi me sukses nga sistemi!</div>";
+    } else {
+        $mesazhi = "<div class='alert error'>Gabim gjatë fshirjes së $emri_msg. Sigurohuni që dosja ekziston.</div>";
+    }
+}
+
+// --- 3. LOGJIKA E PËRDITËSIMIT TË TË DHËNAVE (DHE UPLOADIT OKSIONAL) ---
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['target_uni_fak']) && !isset($_POST['fshi_pdf']) && !isset($_POST['fshi_direktorin'])) {
     $target_parts = explode('||', $_POST['target_uni_fak']);
     $statusi_ri = $_POST['statusi_ri'] ?? 'Aprovuar';
     $data_nga = $_POST['data_nga'] ?? 'N/A';
@@ -71,23 +95,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf_file']) && isset(
             mkdir($target_dir, 0777, true);
         }
 
-        $file_name = basename($_FILES["pdf_file"]["name"]);
-        $target_file = $target_dir . $file_name;
-        $file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+        // Përditësojmë gjithmonë config.txt (Kjo shërben si EDIT)
+        $config_content = "statusi=\"$statusi_ri\"\ndata_e_fundit=\"$data_nga\"\nvlefshme_deri=\"$data_deri\"\n";
+        file_put_contents($target_dir . 'config.txt', $config_content);
+        $mesazhi_shtese = "";
 
-        if ($file_type != "pdf") {
-            $mesazhi = "<div class='alert error'>Gabim: Vetëm fajllat PDF lejohen!</div>";
-        } else {
-            if (move_uploaded_file($_FILES["pdf_file"]["tmp_name"], $target_file)) {
-                // KRIJIMI OSE PËRDITËSIMI I SKEDARIT TË KONFIGURIMIT
-                $config_content = "statusi=\"$statusi_ri\"\ndata_e_fundit=\"$data_nga\"\nvlefshme_deri=\"$data_deri\"\n";
-                file_put_contents($target_dir . 'config.txt', $config_content);
-                
-                $mesazhi = "<div class='alert success'>Dokumenti u ngarkua dhe akreditimi u përditësua për <strong>$emri_per_mesazh</strong>!</div>";
+        // Nëse u zgjodh edhe një PDF për t'u ngarkuar
+        if (!empty($_FILES['pdf_file']['name'])) {
+            $file_name = basename($_FILES["pdf_file"]["name"]);
+            $target_file = $target_dir . $file_name;
+            $file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+
+            if ($file_type != "pdf") {
+                $mesazhi_shtese = " <br><span style='color:red;'>Kujdes: Fajlli nuk u ngarkua sepse lejohen vetëm PDF!</span>";
             } else {
-                $mesazhi = "<div class='alert error'>Pati një gabim gjatë ngarkimit të fajllit.</div>";
+                if (move_uploaded_file($_FILES["pdf_file"]["tmp_name"], $target_file)) {
+                    $mesazhi_shtese = " Dokumenti i ri u ngarkua gjithashtu.";
+                } else {
+                    $mesazhi_shtese = " <br><span style='color:red;'>Pati një problem gjatë ngarkimit të PDF.</span>";
+                }
             }
         }
+        
+        $mesazhi = "<div class='alert success'>Të dhënat u përditësuan për <strong>$emri_per_mesazh</strong>! $mesazhi_shtese</div>";
     }
 }
 
@@ -97,7 +127,6 @@ $stats_aprovuar = 0;
 $stats_ne_shqyrtim = 0;
 $stats_skadojne = 0;
 
-// Funksion i vogël për llogaritjen e datave dhe statusit
 function analizoStatistikat($statusi, $data_deri) {
     global $stats_aprovuar, $stats_ne_shqyrtim, $stats_skadojne;
     $st = strtolower(trim($statusi));
@@ -108,8 +137,8 @@ function analizoStatistikat($statusi, $data_deri) {
     if ($data_deri !== 'N/A' && !empty($data_deri)) {
         $koha_deri = strtotime($data_deri);
         if ($koha_deri) {
-            $ditet = ($koha_deri - time()) / 86400; // 86400 sekonda = 1 ditë
-            if ($ditet <= 30) {
+            $ditet = ($koha_deri - time()) / 86400; 
+            if ($ditet <= 30 && $ditet >= 0) { // Duhet >= 0 qe mos te llogarise te skaduarat
                 $stats_skadojne++;
             }
         }
@@ -131,14 +160,14 @@ function gjeneroBadgeSkadimi($data_deri_str) {
     return '';
 }
 
-// --- 3. LEXIMI I TË DHËNAVE NGA FOLDERAT ---
+// --- 4. LEXIMI I TË DHËNAVE NGA FOLDERAT ---
 $te_gjitha_institucionet = [];
 
 if (is_dir($akreditimet_dir)) {
     $universitetet = scandir($akreditimet_dir);
     foreach ($universitetet as $uni) {
         if ($uni !== '.' && $uni !== '..' && is_dir($akreditimet_dir . $uni)) {
-            $stats_institucione++; // Rrisim numrin e institucioneve
+            $stats_institucione++; 
             
             $uni_path = $akreditimet_dir . $uni . '/';
             $te_gjitha_institucionet[$uni] = [
@@ -176,7 +205,6 @@ if (is_dir($akreditimet_dir)) {
                                 $fak_data['statusi'] = $config['statusi'] ?? 'E panjohur';
                                 $fak_data['data_e_fundit'] = $config['data_e_fundit'] ?? 'N/A';
                                 $fak_data['vlefshme_deri'] = $config['vlefshme_deri'] ?? 'N/A';
-                                
                                 analizoStatistikat($fak_data['statusi'], $fak_data['vlefshme_deri']);
                             }
                         }
@@ -195,7 +223,6 @@ if (is_dir($akreditimet_dir)) {
     }
 }
 
-// Funksion për të përcaktuar klasën CSS të statusit
 function merrKlasenEStatusit($statusi) {
     $st = strtolower(trim($statusi));
     if ($st == 'aprovuar') return 'aprovuar';
@@ -219,11 +246,10 @@ function merrKlasenEStatusit($statusi) {
         .sidebar a { color: #bdc3c7; text-decoration: none; padding: 12px; margin-bottom: 8px; border-radius: 5px; transition: 0.3s; }
         .sidebar a:hover, .sidebar a.active { background-color: #34495e; color: white; }
         .logout-btn { margin-top: auto; background-color: #c0392b; text-align: center; color: white !important; font-weight: bold; }
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; scroll-behavior: smooth; }
         .top-header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 25px; }
         .badge-roli { background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
 
-        /* Karta e Statistikave */
         .stats-grid { display: flex; gap: 20px; margin-bottom: 25px; }
         .stat-card { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 4px solid #bdc3c7; text-align: center;}
         .stat-card h3 { font-size: 28px; color: #2c3e50; margin-bottom: 5px; }
@@ -233,7 +259,8 @@ function merrKlasenEStatusit($statusi) {
         .stat-card.yellow { border-bottom-color: #f1c40f; }
         .stat-card.red { border-bottom-color: #e74c3c; }
 
-        .upload-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 30px; border-top: 4px solid #9b59b6; }
+        .upload-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 30px; border-top: 4px solid #9b59b6; transition: 0.3s; }
+        .upload-card.highlight { box-shadow: 0 0 15px rgba(155, 89, 182, 0.5); transform: scale(1.01); }
         .upload-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .upload-card select, .upload-card input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn { background: #3498db; color: white; border: none; padding: 9px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -241,6 +268,12 @@ function merrKlasenEStatusit($statusi) {
 
         .btn-fshi { background: #e74c3c; color: white; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 5px; }
         .btn-fshi:hover { background: #c0392b; }
+        
+        .btn-aksion { padding: 6px 10px; border-radius: 4px; border: none; font-size: 12px; font-weight: bold; cursor: pointer; color: white; text-decoration: none; display: inline-block; margin-right: 4px; }
+        .btn-edit { background-color: #f39c12; }
+        .btn-edit:hover { background-color: #d68910; }
+        .btn-delete-folder { background-color: #c0392b; }
+        .btn-delete-folder:hover { background-color: #922b21; }
 
         .alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 20px; font-weight: bold; }
         .alert.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -252,8 +285,8 @@ function merrKlasenEStatusit($statusi) {
         .search-input:focus { border-color: #3498db; box-shadow: 0 0 5px rgba(52,152,219,0.3); }
 
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top;}
-        th { background-color: #f8f9fa; color: #333; font-weight: 600; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle;}
+        th { background-color: #f8f9fa; color: #333; font-weight: 600; position: sticky; top: 0; z-index: 11; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
         tr:hover { background-color: #f1f5f8; }
         
         .status { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
@@ -265,112 +298,72 @@ function merrKlasenEStatusit($statusi) {
         .pdf-link { color: #2c3e50; text-decoration: none; font-size: 13px; font-weight: bold; }
         .pdf-item { display: flex; align-items: center; margin-bottom: 5px; background: #f1f2f6; padding: 5px 8px; border-radius: 4px; width: fit-content; }
         .uni-header { background: #eef2f5; font-weight: bold; color: #2c3e50; }
+        .uni-header td { position: sticky; top: 42px; z-index: 10; background: #eef2f5; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .inst-row { background-color: #fdfefe; }
         .inst-row td { border-bottom: 2px solid #ecf0f1; }
-
-        /* E bën kokën e tabelës të qëndrojë lart kur bën scroll */
-        th { 
-            position: sticky; 
-            top: 0; 
-            z-index: 11; 
-            background-color: #f8f9fa; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        /* E bën rreshtin e Universitetit (psh. UBT) të rrijë fiks poshtë kokës së tabelës */
-        .uni-header td { 
-            position: sticky; 
-            top: 42px; /* Përshtatet me lartësinë e <th> */
-            z-index: 10; 
-            background: #eef2f5; /* Sigurohet që të mos jetë transparente */
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
     </style>
     <script>
+        // Konfirmimi për fshirjen e PDF-së
         function konfirmoFshirjen(form) {
             if (confirm("Kujdes! A jeni të sigurt që dëshironi të fshini këtë dokument?")) {
-                let statusiRi = prompt(
-                    "Cili do të jetë statusi i ri i këtij institucioni/fakulteti pas fshirjes?\n\n" +
-                    "Shkruaj numrin:\n" +
-                    "1 - Aprovuar\n" +
-                    "2 - Refuzuar\n" +
-                    "3 - Në shqyrtim\n" +
-                    "4 - E paakredituar", 
-                    "4"
-                );
-                
+                let statusiRi = prompt("Statusi i ri pas fshirjes? (1-Aprovuar, 2-Refuzuar, 3-Në shqyrtim, 4-E paakredituar)", "4");
                 let vlera = "E paakredituar"; 
                 if (statusiRi === "1") vlera = "Aprovuar";
                 if (statusiRi === "2") vlera = "Refuzuar";
                 if (statusiRi === "3") vlera = "Në shqyrtim";
-                if (statusiRi === "4") vlera = "E paakredituar";
-                
                 form.statusi_pas_fshirjes.value = vlera;
                 return true;
             }
             return false;
         }
 
-        // Funksioni për Kërkim Live (I Përmirësuar me Grupim)
+        // Konfirmimi për Fshirjen e të gjithë Dosjes/Fakultetit
+        function konfirmoFshirjenDosjes(emri) {
+            return confirm("KUJDES EKUATEM: A je i/e sigurt që dëshiron të fshish përfundimisht '" + emri + "' dhe gjithë përmbajtjen e tij? Ky veprim nuk zhbëhet!");
+        }
+
+        // Funksioni që merr të dhënat dhe i çon lart tek forma për t'i ndryshuar
+        function editoAkreditimin(uni_fak_vlere, statusi, data_nga, data_deri) {
+            document.querySelector('select[name="target_uni_fak"]').value = uni_fak_vlere;
+            document.querySelector('select[name="statusi_ri"]').value = statusi;
+            document.querySelector('input[name="data_nga"]').value = (data_nga && data_nga !== 'N/A') ? data_nga : '';
+            document.querySelector('input[name="data_deri"]').value = (data_deri && data_deri !== 'N/A') ? data_deri : '';
+            
+            // Theksojmë formën që përdoruesi ta shohë ku po bën Edit
+            let forma = document.getElementById('forma-përditësimit');
+            forma.classList.add('highlight');
+            setTimeout(() => forma.classList.remove('highlight'), 1500);
+
+            // Shkojmë lart në fillim të faqes
+            document.querySelector('.main-content').scrollTo(0, 0);
+        }
+
         function filtroTabelen() {
             let input = document.getElementById("kerkimLive").value.toLowerCase();
-            let table = document.getElementById("tabelaAkreditimeve");
-            let tbody = table.querySelector("tbody");
+            let tbody = document.querySelector("#tabelaAkreditimeve tbody");
             let trs = tbody.querySelectorAll("tr");
+            let currentHeader = null; let groupRows = [];
 
-            let currentHeader = null;
-            let groupRows = [];
-
-            // Funksion i brendshëm për të kontrolluar një universitet dhe fakultetet e tij
             function processGroup(header, rows) {
                 if (!header) return;
-                
-                let headerText = header.textContent.toLowerCase();
-                let headerMatches = headerText.includes(input);
+                let headerMatches = header.textContent.toLowerCase().includes(input);
                 let anyRowMatches = false;
-
                 rows.forEach(row => {
-                    let rowText = row.textContent.toLowerCase();
-                    // Nëse vetë Universiteti përmban fjalën e kërkuar, i tregojmë të gjitha fakultetet e tij.
-                    // OSE nëse fakulteti e përmban fjalën e kërkuar, e tregojmë.
-                    if (headerMatches || rowText.includes(input)) {
-                        row.style.display = "";
-                        anyRowMatches = true;
-                    } else {
-                        row.style.display = "none";
-                    }
+                    if (headerMatches || row.textContent.toLowerCase().includes(input)) {
+                        row.style.display = ""; anyRowMatches = true;
+                    } else { row.style.display = "none"; }
                 });
-
-                // Trego Universititetin (Header) nëse ka përputhje tek emri i tij, ose tek ndonjë nga fakultetet
-                if (headerMatches || anyRowMatches) {
-                    header.style.display = "";
-                } else {
-                    header.style.display = "none";
-                }
+                header.style.display = (headerMatches || anyRowMatches) ? "" : "none";
             }
 
             for (let i = 0; i < trs.length; i++) {
                 let tr = trs[i];
-                
-                // Kapërce rreshtin e zbrazët "Nuk u gjet asnjë..."
-                if (tr.children.length === 1 && tr.textContent.includes("Nuk u gjet")) {
-                    continue; 
-                }
-
+                if (tr.children.length === 1 && tr.textContent.includes("Nuk u gjet")) continue;
                 if (tr.classList.contains('uni-header')) {
-                    // Së pari, përpuno universitetin e mëparshëm që kishim në memorie
                     processGroup(currentHeader, groupRows);
-                    
-                    // Fillo grumbullimin për universitetin e ri
-                    currentHeader = tr;
-                    groupRows = [];
-                } else {
-                    // Shto fakultetin/institucionin tek grupi aktual
-                    groupRows.push(tr);
-                }
+                    currentHeader = tr; groupRows = [];
+                } else { groupRows.push(tr); }
             }
-            
-            // Sigurohu që të përpunosh edhe grupin e fundit të universitetit në fund të tabelës
             processGroup(currentHeader, groupRows);
         }
     </script>
@@ -380,6 +373,7 @@ function merrKlasenEStatusit($statusi) {
     <div class="sidebar">
         <h2>AKA - KSHC</h2>
         <a href="index.php" class="active">Menaxho Akreditimet</a>
+        <a href="shto_fakultet.php" >Shto Fakultete</a>
         <a href="../../logout.php" class="logout-btn">Dilni</a>
     </div>
 
@@ -396,26 +390,15 @@ function merrKlasenEStatusit($statusi) {
         <?php echo $mesazhi; ?>
 
         <div class="stats-grid">
-            <div class="stat-card blue">
-                <h3><?php echo $stats_institucione; ?></h3>
-                <p>Institucione në Total</p>
-            </div>
-            <div class="stat-card green">
-                <h3><?php echo $stats_aprovuar; ?></h3>
-                <p>Programe / Inst. të Aprovuara</p>
-            </div>
-            <div class="stat-card yellow">
-                <h3><?php echo $stats_ne_shqyrtim; ?></h3>
-                <p>Në Shqyrtim</p>
-            </div>
-            <div class="stat-card red">
-                <h3><?php echo $stats_skadojne; ?></h3>
-                <p>Në rrezik Skadimi (< 30 ditë)</p>
-            </div>
+            <div class="stat-card blue"><h3><?php echo $stats_institucione; ?></h3><p>Institucione në Total</p></div>
+            <div class="stat-card green"><h3><?php echo $stats_aprovuar; ?></h3><p>Programe të Aprovuara</p></div>
+            <div class="stat-card yellow"><h3><?php echo $stats_ne_shqyrtim; ?></h3><p>Në Shqyrtim</p></div>
+            <div class="stat-card red"><h3><?php echo $stats_skadojne; ?></h3><p>Në rrezik Skadimi (< 30 ditë)</p></div>
         </div>
 
-        <div class="upload-card">
-            <h3 style="color: #9b59b6; margin-bottom: 15px;">Shto dokument dhe përditëso akreditimin</h3>
+        <div class="upload-card" id="forma-përditësimit">
+            <h3 style="color: #9b59b6; margin-bottom: 15px;">Përditëso Statusin / Shto Dokument</h3>
+            <p style="font-size: 13px; color: #7f8c8d; margin-bottom: 15px;">Zgjidh një fakultet për t'i ndryshuar statusin e akreditimit. Ngarkimi i një PDF-je është opsional.</p>
             <form action="index.php" method="POST" enctype="multipart/form-data">
                 
                 <div class="upload-row">
@@ -431,7 +414,7 @@ function merrKlasenEStatusit($statusi) {
                         <?php endforeach; ?>
                     </select>
                     
-                    <input type="file" name="pdf_file" accept=".pdf" required style="width: 250px;">
+                    <input type="file" name="pdf_file" accept=".pdf" style="width: 250px;" title="Opsionale: Ngarko dokument të ri">
                 </div>
 
                 <div class="upload-row">
@@ -443,13 +426,13 @@ function merrKlasenEStatusit($statusi) {
                         <option value="E paakredituar">🚫 E paakredituar</option>
                     </select>
                     
-                    <span style="font-size: 14px; color: #555;">E vlefshme nga:</span>
-                    <input type="date" name="data_nga" required title="Data e fillimit të akreditimit">
+                    <span style="font-size: 14px; color: #555;">Nga:</span>
+                    <input type="date" name="data_nga" required>
                     
                     <span style="font-size: 14px; color: #555;">Deri më:</span>
-                    <input type="date" name="data_deri" required title="Data e përfundimit">
+                    <input type="date" name="data_deri" required>
                     
-                    <button type="submit" class="btn">Ngarko & Përditëso</button>
+                    <button type="submit" class="btn">Ruaj Ndryshimet</button>
                 </div>
             </form>
         </div>
@@ -467,28 +450,37 @@ function merrKlasenEStatusit($statusi) {
                         <th>Vlefshmëria</th>
                         <th>Statusi</th>
                         <th>Dokumentet</th>
-                    </tr>
+                        <th style="width: 150px; text-align: center;">Aksionet</th> </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($te_gjitha_institucionet)): ?>
-                        <tr><td colspan="4" style="text-align: center;">Nuk u gjet asnjë institucion.</td></tr>
+                        <tr><td colspan="5" style="text-align: center;">Nuk u gjet asnjë institucion.</td></tr>
                     <?php else: ?>
                         <?php foreach ($te_gjitha_institucionet as $uni => $data): ?>
                             
                             <tr class="uni-header">
                                 <td colspan="4">🏫 <?php echo htmlspecialchars($uni); ?></td>
+                                <td style="text-align: center;">
+                                    <form action="index.php" method="POST" style="display:inline;" onsubmit="return konfirmoFshirjenDosjes('<?php echo htmlspecialchars($uni); ?> (Gjithë Universiteti)');">
+                                        <input type="hidden" name="universiteti" value="<?php echo htmlspecialchars($uni); ?>">
+                                        <input type="hidden" name="fakulteti" value="MAIN_INST">
+                                        <input type="hidden" name="fshi_direktorin" value="1">
+                                        <button type="submit" class="btn-aksion btn-delete-folder" title="Fshi të gjithë universitetin">🗑️ Fshi Uni.</button>
+                                    </form>
+                                </td>
                             </tr>
 
                             <?php if ($data['institucionale']['ekziston']): 
                                 $inst = $data['institucionale'];
                                 $klasa_statusit = merrKlasenEStatusit($inst['statusi']);
+                                $uni_fak_id = htmlspecialchars($uni) . '||MAIN_INST';
                             ?>
                                 <tr class="inst-row">
                                     <td style="padding-left: 40px; color: #2980b9;">🎓 <strong>Akreditimi Institucional (Qendror)</strong></td>
                                     <td>
                                         <small style="color: gray;">Nga:</small> <?php echo $inst['data_e_fundit']; ?> <br>
                                         <small style="color: gray;">Deri:</small> <strong><?php echo $inst['vlefshme_deri']; ?></strong>
-                                        <?php echo gjeneroBadgeSkadimi($inst['vlefshme_deri']); // ALARMI I SKADIMIT ?>
+                                        <?php echo gjeneroBadgeSkadimi($inst['vlefshme_deri']); ?>
                                     </td>
                                     <td><span class="status <?php echo $klasa_statusit; ?>"><?php echo htmlspecialchars($inst['statusi']); ?></span></td>
                                     <td>
@@ -511,18 +503,22 @@ function merrKlasenEStatusit($statusi) {
                                             <?php endforeach; ?>
                                         <?php endif; ?>
                                     </td>
+                                    <td style="text-align: center;">
+                                        <button type="button" class="btn-aksion btn-edit" onclick="editoAkreditimin('<?php echo $uni_fak_id; ?>', '<?php echo $inst['statusi']; ?>', '<?php echo $inst['data_e_fundit']; ?>', '<?php echo $inst['vlefshme_deri']; ?>')">✏️ Edit</button>
+                                    </td>
                                 </tr>
                             <?php endif; ?>
 
                             <?php foreach ($data['fakultetet'] as $fak_emri => $fak_data): 
                                 $klasa_statusit = merrKlasenEStatusit($fak_data['statusi']);
+                                $uni_fak_id = htmlspecialchars($uni) . '||' . htmlspecialchars($fak_emri);
                             ?>
                                 <tr>
                                     <td style="padding-left: 40px;">↳ <strong><?php echo htmlspecialchars($fak_emri); ?></strong></td>
                                     <td>
                                         <small style="color: gray;">Nga:</small> <?php echo $fak_data['data_e_fundit']; ?> <br>
                                         <small style="color: gray;">Deri:</small> <strong><?php echo $fak_data['vlefshme_deri']; ?></strong>
-                                        <?php echo gjeneroBadgeSkadimi($fak_data['vlefshme_deri']); // ALARMI I SKADIMIT ?>
+                                        <?php echo gjeneroBadgeSkadimi($fak_data['vlefshme_deri']); ?>
                                     </td>
                                     <td><span class="status <?php echo $klasa_statusit; ?>"><?php echo htmlspecialchars($fak_data['statusi']); ?></span></td>
                                     <td>
@@ -544,6 +540,16 @@ function merrKlasenEStatusit($statusi) {
                                                 </div>
                                             <?php endforeach; ?>
                                         <?php endif; ?>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <button type="button" class="btn-aksion btn-edit" onclick="editoAkreditimin('<?php echo $uni_fak_id; ?>', '<?php echo $fak_data['statusi']; ?>', '<?php echo $fak_data['data_e_fundit']; ?>', '<?php echo $fak_data['vlefshme_deri']; ?>')">✏️ Edit</button>
+                                        
+                                        <form action="index.php" method="POST" style="display:inline;" onsubmit="return konfirmoFshirjenDosjes('<?php echo htmlspecialchars($fak_emri); ?>');">
+                                            <input type="hidden" name="universiteti" value="<?php echo htmlspecialchars($uni); ?>">
+                                            <input type="hidden" name="fakulteti" value="<?php echo htmlspecialchars($fak_emri); ?>">
+                                            <input type="hidden" name="fshi_direktorin" value="1">
+                                            <button type="submit" class="btn-aksion btn-delete-folder" title="Fshi Fakultetin">🗑️ Fshi</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
